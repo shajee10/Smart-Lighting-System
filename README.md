@@ -1,8 +1,8 @@
-# Smart-Lighting-System
+# Smart-Lighting-System - code for PIR ONLY
  Microprocessors Course Project using PIC16F877A
 
 
-PIR ALONE
+Code for PIR ALONE
 
 #include <xc.h>
 #define _XTAL_FREQ 4000000
