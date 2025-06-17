@@ -1,4 +1,4 @@
-# Smart-Lighting-System - code for PIR ONLY
+# Smart-Lighting-System - code 
  Microprocessors Course Project using PIC16F877A
 
 
