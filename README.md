@@ -39,6 +39,101 @@ void main() {
 }
 
 
+
+
+
+
+
+Code for LCD ALONE
+
+#include <xc.h>
+#define _XTAL_FREQ 4000000
+
+#pragma config FOSC = HS       
+#pragma config WDTE = OFF      
+#pragma config PWRTE = ON      
+#pragma config BOREN = ON      
+#pragma config LVP = OFF       
+#pragma config CPD = OFF       
+#pragma config WRT = OFF       
+#pragma config CP = OFF        
+
+// LCD Pin definitions
+#define RS PORTCbits.RC1
+#define EN PORTCbits.RC2
+#define D4 PORTCbits.RC3
+#define D5 PORTCbits.RC4
+#define D6 PORTCbits.RC5
+#define D7 PORTCbits.RC6
+
+void lcd_pulse() {
+    EN = 1; __delay_us(200); EN = 0;
+}
+
+void lcd_send_nibble(unsigned char nibble) {
+    D4 = (nibble >> 0) & 1;
+    D5 = (nibble >> 1) & 1;
+    D6 = (nibble >> 2) & 1;
+    D7 = (nibble >> 3) & 1;
+    lcd_pulse();
+}
+
+void lcd_cmd(unsigned char cmd) {
+    RS = 0;
+    lcd_send_nibble(cmd >> 4);
+    lcd_send_nibble(cmd & 0x0F);
+    __delay_ms(2);
+}
+
+void lcd_data(unsigned char data) {
+    RS = 1;
+    lcd_send_nibble(data >> 4);
+    lcd_send_nibble(data & 0x0F);
+    __delay_ms(2);
+}
+
+void lcd_init() {
+    __delay_ms(20);
+    lcd_cmd(0x02);    // 4-bit mode
+    lcd_cmd(0x28);    // 2 lines, 5x8 font
+    lcd_cmd(0x0C);    // Display ON, Cursor OFF
+    lcd_cmd(0x06);    // Entry mode
+    lcd_cmd(0x01);    // Clear display
+}
+
+void lcd_print(const char* str) {
+    while (*str) lcd_data(*str++);
+}
+
+void lcd_set_cursor(unsigned char row, unsigned char col) {
+    unsigned char pos = (row == 1) ? 0x80 : 0xC0;
+    pos += col;
+    lcd_cmd(pos);
+}
+
+void main() {
+    // Set LCD Pins as Output
+    TRISC = 0x00;
+    PORTC = 0x00;
+
+    lcd_init();
+    lcd_set_cursor(1, 2);
+    lcd_print("Hello World!");
+
+    while (1);
+}
+
+
+
+
+
+
+
+
+
+
+
+
 LCD+ PIR 2
 
 
