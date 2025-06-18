@@ -654,3 +654,130 @@ void main() {
         __delay_ms(50);
     }
 }
+
+-----------------------------------
+final code that is submitted:
+
+final code 
+
+#include <xc.h>
+#define _XTAL_FREQ 20000000
+
+// CONFIG
+#pragma config FOSC = HS
+#pragma config WDTE = OFF
+#pragma config PWRTE = ON
+#pragma config BOREN = ON
+#pragma config LVP = OFF
+#pragma config CPD = OFF
+#pragma config WRT = OFF
+#pragma config CP = OFF
+
+#define RS RD0
+#define EN RD2
+
+#define PIR3 RD5
+#define MAIN_LIGHT RB3
+#define BUZZER RB2
+
+char ledState = 0;
+
+void lcd_send_nibble(unsigned char nibble) {
+    PORTC = (PORTC & 0x0F) | ((nibble & 0x0F) << 4);
+    EN = 1; __delay_us(1); EN = 0;
+    __delay_us(100);
+}
+
+void lcd_data(unsigned char data) {
+    RS = 1;
+    lcd_send_nibble(data >> 4);
+    lcd_send_nibble(data);
+    __delay_us(100);
+}
+
+void lcd_command(unsigned char command) {
+    RS = 0;
+    lcd_send_nibble(command >> 4);
+    lcd_send_nibble(command);
+    if (command == 0x01 || command == 0x02) __delay_ms(2);
+}
+
+void lcd_string(const char *string) {
+    while (*string) lcd_data(*string++);
+}
+
+void lcd_initialize() {
+    __delay_ms(20);
+    RS = 0;
+    lcd_send_nibble(0x03); __delay_ms(5);
+    lcd_send_nibble(0x03); __delay_us(100);
+    lcd_send_nibble(0x03); __delay_us(100);
+    lcd_send_nibble(0x02);
+    lcd_command(0x28);  // 4-bit mode, 2-line
+    lcd_command(0x0C);  // Display ON, Cursor OFF
+    lcd_command(0x06);  // Entry mode
+    lcd_command(0x01);  // Clear display
+    __delay_ms(2);
+}
+
+void update_lcd_display() {
+    lcd_command(0x80); // Line 1
+    lcd_string("Mode: PIR        ");
+    lcd_command(0xC0); // Line 2
+    if (ledState) {
+        lcd_string("Light: ON  Buzz:ON ");
+    } else {
+        lcd_string("Light:OFF  Buzz:OFF");
+    }
+}
+
+void turnLightOn() {
+    MAIN_LIGHT = 1;
+    BUZZER = 1;
+    ledState = 1;
+    update_lcd_display();
+}
+
+void turnLightOff() {
+    MAIN_LIGHT = 0;
+    BUZZER = 0;
+    ledState = 0;
+    update_lcd_display();
+}
+
+void main() {
+    TRISC = 0x00;
+    TRISD = 0x3A; // RD5 = PIR input, RD0/RD2 = LCD
+    TRISB = 0x00; // RB3 = Light, RB2 = Buzzer
+    TRISA = 0xFF;
+
+    PORTA = PORTB = PORTC = PORTD = 0x00;
+
+    lcd_initialize();
+    lcd_command(0x80);
+    lcd_string("  System Ready   ");
+    lcd_command(0xC0);
+    lcd_string(" PIR Mode Active ");
+    __delay_ms(2000);
+    lcd_command(0x01);
+    __delay_ms(2);
+    update_lcd_display();
+
+    char pirTriggered = 0;
+
+    while (1) {
+        if (PIR3 && !pirTriggered) {
+            turnLightOn();
+            pirTriggered = 1;
+            __delay_ms(5000);
+            turnLightOff();
+        }
+
+        // Reset trigger only after motion has stopped
+        if (!PIR3) {
+            pirTriggered = 0;
+        }
+
+        __delay_ms(100);
+    }
+}
