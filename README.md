@@ -510,3 +510,147 @@ void display_mode(const char* modeText) {
     lcd_set_cursor(1, 2);
     lcd_print(modeText);
 }
+
+
+
+-----------------------------------------------------------------------------------------------
+
+New code without the KEYPAD, + adding a buzzer connected to PIR sensor
+
+
+#include <xc.h>
+#define _XTAL_FREQ 20000000
+
+// CONFIG
+#pragma config FOSC = HS       // Use external crystal
+#pragma config WDTE = OFF      // Disable watchdog
+#pragma config PWRTE = ON      // Enable power-up timer
+#pragma config BOREN = ON      // Brown-out reset enabled
+#pragma config LVP = OFF       // Low voltage programming off
+#pragma config CPD = OFF       
+#pragma config WRT = OFF       
+#pragma config CP = OFF     
+
+#define RS RD0
+#define EN RD2
+
+#define PIR3 RD5
+#define MAIN_LIGHT RB3
+#define BUZZER RB2
+
+#define MODE_BUTTON RA0       // Button to change mode
+#define LIGHT_BUTTON RA1      // Button to toggle light in manual mode
+
+unsigned char mode = 1; // 0 = PIR, 1 = Button Mode (start with button mode)
+unsigned char ledState = 0;
+unsigned char lastModeBtnState = 1;
+unsigned char lastLightBtnState = 1;
+
+void lcd_send_nibble(unsigned char nibble) {
+    PORTC = (PORTC & 0x0F) | ((nibble & 0x0F) << 4);
+    EN = 1; __delay_us(1); EN = 0;
+    __delay_us(100);
+}
+
+void lcd_data(unsigned char data) {
+    RS = 1;
+    lcd_send_nibble(data >> 4);
+    lcd_send_nibble(data);
+    __delay_us(100);
+}
+
+void lcd_command(unsigned char command) {
+    RS = 0;
+    lcd_send_nibble(command >> 4);
+    lcd_send_nibble(command);
+    if (command == 0x01 || command == 0x02) __delay_ms(2);
+}
+
+void lcd_string(const char *string) {
+    while (*string) lcd_data(*string++);
+}
+
+void lcd_initialize() {
+    __delay_ms(20);
+    RS = 0;
+    lcd_send_nibble(0x03); __delay_ms(5);
+    lcd_send_nibble(0x03); __delay_us(100);
+    lcd_send_nibble(0x03); __delay_us(100);
+    lcd_send_nibble(0x02);
+    lcd_command(0x28);
+    lcd_command(0x0C);
+    lcd_command(0x06);
+    lcd_command(0x01);
+    __delay_ms(2);
+}
+
+void update_lcd_display() {
+    lcd_command(0x80); // Line 1
+    lcd_string("Mode: ");
+    lcd_string(mode ? "Button " : "PIR    ");
+
+    lcd_command(0xC0); // Line 2
+    lcd_string("Light: ");
+    lcd_string(ledState ? "ON " : "OFF");
+    lcd_string("       "); // Padding
+}
+
+void turnLightOn() {
+    MAIN_LIGHT = 1;
+    ledState = 1;
+    update_lcd_display();
+
+    if (mode == 0) // PIR mode only
+        BUZZER = 1;
+    else
+        BUZZER = 0;
+}
+
+void turnLightOff() {
+    MAIN_LIGHT = 0;
+    ledState = 0;
+    update_lcd_display();
+    BUZZER = 0;
+}
+
+void main() {
+    TRISC = 0x00;
+    TRISD = 0x3A;  // RD0/RD2 output, RD5 input
+    TRISB = 0x00;
+    TRISA = 0xFF;  // RA0 and RA1 as inputs
+
+    PORTC = PORTD = PORTB = PORTA = 0x00;
+
+    lcd_initialize();
+    update_lcd_display();
+
+    while (1) {
+        // Button 2: Change mode
+        if (MODE_BUTTON == 0 && lastModeBtnState == 1) {
+            mode = !mode;
+            update_lcd_display();
+            __delay_ms(300);
+        }
+        lastModeBtnState = MODE_BUTTON;
+
+        if (mode == 0) {
+            // PIR Mode
+            if (PIR3 && !ledState)
+                turnLightOn();
+            else if (!PIR3 && ledState)
+                turnLightOff();
+        } else {
+            // Button Mode
+            if (LIGHT_BUTTON == 0 && lastLightBtnState == 1) {
+                if (ledState)
+                    turnLightOff();
+                else
+                    turnLightOn();
+                __delay_ms(300);
+            }
+            lastLightBtnState = LIGHT_BUTTON;
+        }
+
+        __delay_ms(50);
+    }
+}
